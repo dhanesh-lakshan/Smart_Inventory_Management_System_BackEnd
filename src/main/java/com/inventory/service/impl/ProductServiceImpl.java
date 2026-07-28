@@ -10,10 +10,12 @@ import com.inventory.exception.ResourceNotFoundException;
 import com.inventory.repository.CategoryRepository;
 import com.inventory.repository.ProductRepository;
 import com.inventory.repository.SupplierRepository;
+import com.inventory.service.AuditLogService;
 import com.inventory.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 
 import java.util.List;
 
@@ -24,6 +26,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -91,7 +94,9 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void delete(Long id) {
-        productRepository.delete(findEntity(id));
+        Product product = findEntity(id);
+        productRepository.delete(product);
+        auditLogService.log("DELETE_PRODUCT", "Product", id, product.getProductName(), null);   // ← මේ line එක add කරන්න
     }
 
     private Product findEntity(Long id) {

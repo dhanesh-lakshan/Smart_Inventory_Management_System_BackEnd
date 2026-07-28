@@ -9,6 +9,7 @@ import com.inventory.exception.ResourceNotFoundException;
 import com.inventory.repository.InventoryTransactionRepository;
 import com.inventory.repository.ProductRepository;
 import com.inventory.repository.SalesOrderRepository;
+import com.inventory.service.NotificationService;
 import com.inventory.service.SalesOrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
     private final SalesOrderRepository salesOrderRepository;
     private final ProductRepository productRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -72,6 +74,14 @@ public class SalesOrderServiceImpl implements SalesOrderService {
             int newStock = product.getStockQuantity() - itemReq.getQuantity();
             product.setStockQuantity(newStock);
             productRepository.save(product);
+
+            if (newStock <= product.getMinimumStock()) {
+                notificationService.notifyAllAdminsAndManagers(
+                    "Low Stock Alert",
+                    product.getProductName() + " (SKU: " + product.getSku() + ") stock is now " + newStock
+                    + ", at or below minimum level of " + product.getMinimumStock() + "."
+                );
+            }
 
             // BR-10 — audit trail for every stock movement
             InventoryTransaction txn = InventoryTransaction.builder()
