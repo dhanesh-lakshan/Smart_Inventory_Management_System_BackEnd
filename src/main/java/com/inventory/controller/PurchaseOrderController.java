@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -36,6 +37,7 @@ public class PurchaseOrderController {
     }
 
     @PutMapping("/{id}/receive")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<PurchaseOrderResponse>> receive(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Purchase order received. Stock updated.", purchaseOrderService.receive(id)));
     }
