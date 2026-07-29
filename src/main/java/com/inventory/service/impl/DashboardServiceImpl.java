@@ -3,6 +3,7 @@ package com.inventory.service.impl;
 import com.inventory.dto.DashboardResponse;
 import com.inventory.dto.InventoryReportItem;
 import com.inventory.dto.MonthlyTotalResponse;
+import com.inventory.dto.SupplierReportItem;
 import com.inventory.entity.Product;
 import com.inventory.repository.*;
 import com.inventory.service.DashboardService;
@@ -79,6 +80,26 @@ public class DashboardServiceImpl implements DashboardService {
                         .costPrice(p.getCostPrice())
                         .stockValue(p.getCostPrice().multiply(BigDecimal.valueOf(p.getStockQuantity())))
                         .build())
+                .toList();
+    }
+
+    @Override
+    public List<SupplierReportItem> getSupplierReport() {
+        return supplierRepository.findAll().stream()
+                .map(s -> {
+                        long orderCount = purchaseOrderRepository.countBySupplierId(s.getId());
+                        BigDecimal totalAmount = purchaseOrderRepository.sumAmountBySupplierId(s.getId());
+
+                        return SupplierReportItem.builder()
+                                .supplierId(s.getId())
+                                .companyName(s.getCompanyName())
+                                .contactPerson(s.getContactPerson())
+                                .phone(s.getPhone())
+                                .totalPurchaseOrders(orderCount)
+                                .totalPurchaseAmount(totalAmount)
+                                .active(s.getActive())
+                                .build();
+                })
                 .toList();
     }
 }

@@ -34,6 +34,9 @@ public class InventoryTransaction {
 
     private String remarks;
 
+    @Column(name = "performed_by")
+    private Long performedBy;
+
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 

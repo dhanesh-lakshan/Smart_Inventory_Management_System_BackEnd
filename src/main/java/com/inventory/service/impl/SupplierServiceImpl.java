@@ -6,6 +6,7 @@ import com.inventory.entity.Supplier;
 import com.inventory.exception.DuplicateResourceException;
 import com.inventory.exception.ResourceNotFoundException;
 import com.inventory.repository.SupplierRepository;
+import com.inventory.service.AuditLogService;
 import com.inventory.service.SupplierService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.List;
 public class SupplierServiceImpl implements SupplierService {
 
     private final SupplierRepository supplierRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -35,7 +37,11 @@ public class SupplierServiceImpl implements SupplierService {
                 .country(request.getCountry())
                 .active(true)
                 .build();
-        return toResponse(supplierRepository.save(supplier));
+
+        Supplier saved = supplierRepository.save(supplier);
+        auditLogService.log("CREATE_SUPPLIER", "Supplier", saved.getId(), null, saved.getCompanyName());
+
+        return toResponse(saved);
     }
 
     @Override
@@ -52,6 +58,8 @@ public class SupplierServiceImpl implements SupplierService {
     @Transactional
     public SupplierResponse update(Long id, SupplierRequest request) {
         Supplier supplier = findEntity(id);
+        String oldCompanyName = supplier.getCompanyName();
+
         supplier.setCompanyName(request.getCompanyName());
         supplier.setContactPerson(request.getContactPerson());
         supplier.setEmail(request.getEmail());
@@ -59,13 +67,19 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setAddress(request.getAddress());
         supplier.setCity(request.getCity());
         supplier.setCountry(request.getCountry());
-        return toResponse(supplierRepository.save(supplier));
+
+        Supplier saved = supplierRepository.save(supplier);
+        auditLogService.log("UPDATE_SUPPLIER", "Supplier", id, oldCompanyName, request.getCompanyName());
+
+        return toResponse(saved);
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
-        supplierRepository.delete(findEntity(id));
+        Supplier supplier = findEntity(id);
+        supplierRepository.delete(supplier);
+        auditLogService.log("DELETE_SUPPLIER", "Supplier", id, supplier.getCompanyName(), null);
     }
 
     private Supplier findEntity(Long id) {

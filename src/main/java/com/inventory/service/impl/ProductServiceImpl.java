@@ -13,6 +13,9 @@ import com.inventory.repository.SupplierRepository;
 import com.inventory.service.AuditLogService;
 import com.inventory.service.ProductService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,8 +56,9 @@ public class ProductServiceImpl implements ProductService {
                 .minimumStock(request.getMinimumStock() != null ? request.getMinimumStock() : 0)
                 .active(true)
                 .build();
-
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        auditLogService.log("CREATE_PRODUCT", "Product", saved.getId(), null, saved.getSku());
+        return toResponse(saved);
     }
 
     @Override
@@ -87,8 +91,9 @@ public class ProductServiceImpl implements ProductService {
         if (request.getMinimumStock() != null) {
             product.setMinimumStock(request.getMinimumStock());
         }
-
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        auditLogService.log("UPDATE_PRODUCT", "Product", id, null, request.getSku());
+        return toResponse(saved);
     }
 
     @Override
@@ -97,6 +102,14 @@ public class ProductServiceImpl implements ProductService {
         Product product = findEntity(id);
         productRepository.delete(product);
         auditLogService.log("DELETE_PRODUCT", "Product", id, product.getProductName(), null);   // ← මේ line එක add කරන්න
+    }
+
+    @Override
+    @Transactional
+    public void updateImageUrl(Long id, String imageUrl) {
+        Product product = findEntity(id);
+        product.setImageUrl(imageUrl);
+        productRepository.save(product);
     }
 
     private Product findEntity(Long id) {
@@ -120,5 +133,10 @@ public class ProductServiceImpl implements ProductService {
                 .active(p.getActive())
                 .createdAt(p.getCreatedAt())
                 .build();
+    }
+
+    @Override
+    public Page<ProductResponse> search(String keyword, Long categoryId, Pageable pageable) {
+        return productRepository.search(keyword, categoryId, pageable).map(this::toResponse);
     }
 }

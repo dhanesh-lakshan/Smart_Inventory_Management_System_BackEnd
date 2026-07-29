@@ -7,6 +7,7 @@ import com.inventory.exception.ResourceNotFoundException;
 import com.inventory.repository.NotificationRepository;
 import com.inventory.repository.UserRepository;
 import com.inventory.security.SecurityUtils;
+import com.inventory.service.EmailService;
 import com.inventory.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     @Override
     @Transactional
@@ -31,6 +33,8 @@ public class NotificationServiceImpl implements NotificationService {
                 .isRead(false)
                 .build();
         notificationRepository.save(n);
+
+        emailService.sendEmail(user.getEmail(), title, message);
     }
 
     @Override
