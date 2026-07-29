@@ -6,6 +6,7 @@ import com.inventory.entity.Category;
 import com.inventory.exception.DuplicateResourceException;
 import com.inventory.exception.ResourceNotFoundException;
 import com.inventory.repository.CategoryRepository;
+import com.inventory.service.AuditLogService;
 import com.inventory.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.List;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -30,6 +32,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .description(request.getDescription())
                 .build();
         Category saved = categoryRepository.save(category);
+        auditLogService.log("CREATE_CATEGORY", "Category", saved.getId(), null, saved.getName());
         return toResponse(saved);
     }
 
@@ -50,9 +53,12 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public CategoryResponse update(Long id, CategoryRequest request) {
         Category category = findEntity(id);
+        String oldName = category.getName(); 
         category.setName(request.getName());
         category.setDescription(request.getDescription());
-        return toResponse(categoryRepository.save(category));
+        CategoryResponse response = toResponse(categoryRepository.save(category));
+        auditLogService.log("UPDATE_CATEGORY", "Category", id, oldName, request.getName());   
+        return response;
     }
 
     @Override
@@ -60,6 +66,7 @@ public class CategoryServiceImpl implements CategoryService {
     public void delete(Long id) {
         Category category = findEntity(id);
         categoryRepository.delete(category);
+        auditLogService.log("DELETE_CATEGORY", "Category", id, category.getName(), null);
     }
 
     private Category findEntity(Long id) {

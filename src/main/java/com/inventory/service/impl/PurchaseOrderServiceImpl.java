@@ -10,8 +10,12 @@ import com.inventory.repository.InventoryTransactionRepository;
 import com.inventory.repository.ProductRepository;
 import com.inventory.repository.PurchaseOrderRepository;
 import com.inventory.repository.SupplierRepository;
+import com.inventory.service.AuditLogService;
 import com.inventory.service.PurchaseOrderService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +32,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private final SupplierRepository supplierRepository;
     private final ProductRepository productRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -69,7 +74,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         // Step 7 — save (cascade නිසා items ටිකත් auto-save)
         PurchaseOrder saved = purchaseOrderRepository.save(order);
-
+        auditLogService.log("CREATE_PURCHASE_ORDER", "PurchaseOrder", saved.getId(), null, saved.getPurchaseNumber());
         return toResponse(saved);
     }
 
@@ -107,7 +112,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         // Step 4 — order status update
         order.setStatus(PurchaseStatus.RECEIVED);
         PurchaseOrder saved = purchaseOrderRepository.save(order);
-
+        auditLogService.log("RECEIVE_PURCHASE_ORDER", "PurchaseOrder", id, "PENDING", "RECEIVED");
         return toResponse(saved);
     }
     
@@ -151,4 +156,52 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 .items(itemResponses)
                 .build();
     }
+
+    @Override
+        @Transactional
+        public PurchaseOrderResponse update(Long id, PurchaseOrderRequest request) {
+
+        PurchaseOrder order = purchaseOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Purchase order not found: " + id));
+
+        if (order.getStatus() != PurchaseStatus.PENDING) {
+                throw new BusinessRuleViolationException(
+                        "Only PENDING orders can be updated. Current status: " + order.getStatus());
+        }
+
+        Supplier supplier = supplierRepository.findById(request.getSupplierId())
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found: " + request.getSupplierId()));
+        order.setSupplier(supplier);
+
+        order.getItems().clear();
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (PurchaseItemRequest itemReq : request.getItems()) {
+                Product product = productRepository.findById(itemReq.getProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemReq.getProductId()));
+
+                BigDecimal subtotal = itemReq.getUnitCost().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
+
+                PurchaseOrderItem item = PurchaseOrderItem.builder()
+                        .product(product)
+                        .quantity(itemReq.getQuantity())
+                        .unitCost(itemReq.getUnitCost())
+                        .subtotal(subtotal)
+                        .build();
+
+                order.addItem(item);
+                total = total.add(subtotal);
+        }
+        order.setTotalAmount(total);
+
+        PurchaseOrder saved = purchaseOrderRepository.save(order);
+        auditLogService.log("UPDATE_PURCHASE_ORDER", "PurchaseOrder", id, null, order.getPurchaseNumber());
+
+        return toResponse(saved);
+        }
+
+        @Override
+        public Page<PurchaseOrderResponse> search(PurchaseStatus status, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+        return purchaseOrderRepository.search(status, fromDate, toDate, pageable).map(this::toResponse);
+        }
 }

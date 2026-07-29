@@ -9,9 +9,13 @@ import com.inventory.exception.ResourceNotFoundException;
 import com.inventory.repository.InventoryTransactionRepository;
 import com.inventory.repository.ProductRepository;
 import com.inventory.repository.SalesOrderRepository;
+import com.inventory.service.AuditLogService;
 import com.inventory.service.NotificationService;
 import com.inventory.service.SalesOrderService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +32,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
     private final ProductRepository productRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final NotificationService notificationService;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -98,6 +103,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         order.setTotalAmount(total);
 
         SalesOrder saved = salesOrderRepository.save(order);
+        auditLogService.log("CREATE_SALE", "SalesOrder", saved.getId(), null, saved.getInvoiceNumber());
         return toResponse(saved);
     }
 
@@ -141,5 +147,48 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 .status(o.getStatus())
                 .items(itemResponses)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public SalesOrderResponse cancel(Long id) {
+
+        SalesOrder order = salesOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sales order not found: " + id));
+
+        if (order.getStatus() != SaleStatus.COMPLETED) {
+            throw new BusinessRuleViolationException(
+                    "Only COMPLETED sales can be cancelled. Current status: " + order.getStatus());
+        }
+
+        // Stock ආපහු restore කරනවා (sale එකේදී අඩු කරපු quantity ටික)
+        for (SalesOrderItem item : order.getItems()) {
+            Product product = item.getProduct();
+            int newStock = product.getStockQuantity() + item.getQuantity();
+            product.setStockQuantity(newStock);
+            productRepository.save(product);
+
+            InventoryTransaction txn = InventoryTransaction.builder()
+                    .product(product)
+                    .transactionType(TransactionType.RETURN)
+                    .quantity(item.getQuantity())
+                    .balanceAfter(newStock)
+                    .referenceId(order.getInvoiceNumber())
+                    .remarks("Stock restored via cancellation of sale " + order.getInvoiceNumber())
+                    .build();
+            inventoryTransactionRepository.save(txn);
+        }
+
+        order.setStatus(SaleStatus.CANCELLED);
+        SalesOrder saved = salesOrderRepository.save(order);
+
+        auditLogService.log("CANCEL_SALE", "SalesOrder", id, "COMPLETED", "CANCELLED");
+
+        return toResponse(saved);
+    }
+
+    @Override
+    public Page<SalesOrderResponse> search(SaleStatus status, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+        return salesOrderRepository.search(status, fromDate, toDate, pageable).map(this::toResponse);
     }
 }

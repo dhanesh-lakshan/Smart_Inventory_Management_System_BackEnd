@@ -23,7 +23,10 @@ public class JwtUtils {
     }
 
     public String generateToken(Authentication authentication) {
-        String email = authentication.getName();
+        return generateTokenFromEmail(authentication.getName());
+    }
+
+    public String generateTokenFromEmail(String email) {
         return Jwts.builder()
                 .subject(email)
                 .issuedAt(new Date())

@@ -1,6 +1,10 @@
 package com.inventory.repository;
 
 import com.inventory.entity.SalesOrder;
+import com.inventory.enums.SaleStatus;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,4 +25,13 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
     List<Object[]> monthlySalesTotals(@Param("fromDate") LocalDate fromDate);
 
     List<SalesOrder> findTop5ByOrderBySaleDateDesc();
+
+    @Query("SELECT s FROM SalesOrder s WHERE " +
+       "(:status IS NULL OR s.status = :status) " +
+       "AND (:fromDate IS NULL OR s.saleDate >= :fromDate) " +
+       "AND (:toDate IS NULL OR s.saleDate <= :toDate)")
+    Page<SalesOrder> search(@Param("status") SaleStatus status,
+                            @Param("fromDate") LocalDate fromDate,
+                            @Param("toDate") LocalDate toDate,
+                            Pageable pageable);
 }
